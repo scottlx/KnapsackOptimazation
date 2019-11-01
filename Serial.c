@@ -3,7 +3,7 @@
 
 void LoadInput(char file[], 
 							 int* num_painting, int* num_bags,
-							 int* weights, int* values){
+							 int** weights, int** values){
 		FILE *infile; 
 		char filename[64];
 		int i, temp_int;
@@ -27,42 +27,49 @@ void LoadInput(char file[],
   	
   	
   	// prepare memory for weights and values array
-  	weights = malloc((*num_painting)*sizeof(int));
-  	values = malloc((*num_painting)*sizeof(int));
+  	*weights = malloc((*num_painting)*sizeof(int));
+  	*values = malloc((*num_painting)*sizeof(int));
   	
   	// load weights
   	for(i=0; i<(*num_painting); i++){
   		fscanf (infile, "%d", &temp_int);
-  		weights[i] = temp_int;
+  		(*weights)[i] = temp_int;
   	}
   	
   	// load values
   	for(i=0; i<(*num_painting); i++){
   		fscanf (infile, "%d", &temp_int);
-  		values[i] = temp_int;
+  		(*values)[i] = temp_int;
   	}
     fclose (infile); 
     
-    //printf("number of bags = %d\n", *num_bags);
-    //printf("number of paintings = %d\n", *num_painting);
+    printf("number of bags = %d\n", *num_bags);
+    printf("number of paintings = %d\n", *num_painting);
+
 }
 
-void Worker(int* weight, int* values, int* result, int n, int b){
+void Worker(int n, int b, int weight[n], int value[n], int result[n][b]){
 		int i, j;
 		for(j=0; j<b; j++){
+
 			if (weight[0] > j) {
 	  		result[0][j] = 0;
 				} 
 			else {
-	  			result[0][j] = values[0];
+	  			result[0][j] = value[0];
 			}
 		}
+				
 		for(i = 1; i<n; i++){
+		//printf("i = %d\n",i);
 			for(j=0; j<b; j++){
-				if (j < weight[i] || result[i-1][j] >= result[i-1][j-weight[i]] + value[i])){
-					result[i][j]=result[i-1][j];
+			//printf("j = %d\n",j);
+				if (j < weight[i] || result[i-1][j] >= result[i-1][j-weight[i]] + value[i]){
+					//printf("er\n");
+					result[i][j] = result[i-1][j];
 				}
 				else{
+					
 					result[i][j] = result[i-1][j-weight[i]] + value[i];
 				}
 			}
@@ -70,24 +77,34 @@ void Worker(int* weight, int* values, int* result, int n, int b){
 }
 
 
+void print_result(int num_painting, int num_bags, 
+								  int result[num_painting][num_painting]){
+		int i,j;
+		for(i=0; i< num_painting;i++){
+			for(j=0; j < num_bags;j++){
+				printf("%d ",result[i][j]);
+			}
+			printf("\n");
+		}
+}
+
 
 
 int main(int argc, char *argv[]){
-<<<<<<< HEAD
 		int num_painting,num_bags;
-    int *weights;
-    int *values;
-    int *result;
-		LoadInput("test1.txt",&num_painting, &num_bags, weights, values);
-		result = malloc(sizof(int[num_painting][num_bags]));
-		Worker(weights, values, result, num_painting, num_bags);
-=======
-		int num_painting, num_bags;
-    int weights;
-    int values;
+    int* weights;
+    int* values;
+    int i,j;
+    
+    // load input from txt
 		LoadInput("test.txt", &num_painting, &num_bags, &weights, &values);
 		
+		int (*result)[num_bags];
+    result = malloc(sizeof(int[num_painting][num_bags]));
+		Worker(num_painting, num_bags, weights, values, result);
 		
->>>>>>> 58f8c313f3058b604f97524aff1528d218c7e0af
+		print_result(num_painting, num_bags, result);
+
+
 		return 0; 
 }
