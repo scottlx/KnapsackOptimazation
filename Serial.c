@@ -91,20 +91,20 @@ void print_result(int num_painting, int num_bags,
 
 
 int main(int argc, char *argv[]){
-		int num_painting,num_bags;
+	int num_painting,num_bags;
     int* weights;
     int* values;
     int i,j;
     
     // load input from txt
-		LoadInput("test.txt", &num_painting, &num_bags, &weights, &values);
+	LoadInput("test.txt", &num_painting, &num_bags, &weights, &values);
 		
-		int (*result)[num_bags];
+	int (*result)[num_bags];
     result = malloc(sizeof(int[num_painting][num_bags]));
-		Worker(num_painting, num_bags, weights, values, result);
+	Worker(num_painting, num_bags, weights, values, result);
 		
-		print_result(num_painting, num_bags, result);
+	print_result(num_painting, num_bags, result);
 
 
-		return 0; 
+	return 0; 
 }

@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
+// # of painting = first arg, # of bags = second arg, file name = thrid arg
 int main(int argc, char *argv[]){
 	int n = 0,c = 0, i = 0;
 	FILE * fp;
