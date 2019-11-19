@@ -24,7 +24,8 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
 
 
 #define PRINT_TIME         1
-#define FILE_NAME "test2.txt"
+#define FILE_NAME "test.txt"
+#define NUM_BAG 10
 #define GRID_WIDTH 1
 
 #define IMUL(a, b) __mul24(a, b)
@@ -79,12 +80,15 @@ for(i=0; i<(*num_painting); i++){
 
 void Worker(int n, int b, int* weight, int* value, int* result){
   int i, j;
+  int* tmp1 = (int *) malloc(b*sizeof(int));
+  int* tmp2 = (int *) malloc(b*sizeof(int));
+  int* tmp3;
   for(j=0; j<b; j++){
     if (weight[0] > j) {
-      result[j] = 0;
+      tmp1[j] = 0;
     } 
     else {
-      result[j] = value[0];
+      tmp1[j] = value[0];
     }
   }
 
@@ -92,27 +96,34 @@ void Worker(int n, int b, int* weight, int* value, int* result){
     //printf("i = %d\n",i);
     for(j=0; j<b; j++){
       //printf("j = %d\n",j);
-      if (j < weight[i] || result[(i-1)*n +j] >= result[(i-1)*n +j-weight[i]] + value[i]){
+      if (j < weight[i] || tmp1[j] >= tmp1[j-weight[i]] + value[i]){
         //printf("er\n");
-        result[i*n +j] = result[(i-1)*n +j];
+        tmp2[j] = tmp1[j];
       }
       else{
-        result[i*n +j] = result[(i-1)*n +j-weight[i]] + value[i];
+        tmp2[j] = tmp1[j-weight[i]] + value[i];
       }
     }
+    tmp3 = tmp1;
+    tmp1 = tmp2;
+    tmp2 = tmp3;
+  }
+  for(j=0; j<b; j++){
+    result[j] = tmp1[j];
   }
 }
 
 
-void print_result(int num_painting, int num_bags, int* result){
-  int i,j;
-  for(i=0; i< num_painting;i++){
+
+
+void print_result(int num_bags, int* result){
+  int j;
     for(j=0; j < num_bags;j++){
-      printf("%d ",result[i*num_painting +j]);
+      printf("%d ",result[j]);
     }
     printf("\n");
-  }
 }
+
 
 
 
@@ -121,24 +132,27 @@ __global__ void kernel (int p, int b, int* w, int* v, int* r) {
 	// int col = threadIdx.x;
 	int row = threadIdx.y;
   int i;
-
+  __shared__ int last_col[NUM_BAG];
+  __shared__ int this_col[NUM_BAG];
   //initialize first element
   if (w[0] > row) {
-    r[row] = 0;
+    last_col[row] = 0;
   } 
   else {
-    r[row] = v[0];
+    last_col[row] = v[0];
   }
   __syncthreads();
 	for(i=1; i<p; i++){
-    if (row < w[i] || r[(i-1)*p+row] >= r[(i-1)*p + row-w[i]] + v[i]){
-      r[i*p+row] = r[(i-1)*p+row];
+    if (row < w[i] || last_col[row] >= last_col[row-w[i]] + v[i]){
+      this_col[row] = last_col[row];
     }
     else{
-      r[i*p+row] = r[(i-1)*p+row-w[i]] + v[i];
+      this_col[row] = last_col[row-w[i]] + v[i];
     }
-		__syncthreads();
-	}
+    __syncthreads();
+    last_col[row] = this_col[row];
+  }
+  r[row]=this_col[row];
 }
 
 
@@ -202,8 +216,8 @@ int main(int argc, char **argv){
 
 
    // Allocate arrays on host memory
-   results = (int *) malloc(num_painting * num_bags * sizeof(int));
-   results_gold = (int *) malloc(num_painting * num_bags * sizeof(int));
+   results = (int *) malloc(num_bags * sizeof(int));
+   results_gold = (int *) malloc(num_bags * sizeof(int));
   
   // GPU Timing variables
   cudaEvent_t start, stop;
@@ -219,7 +233,7 @@ int main(int argc, char **argv){
 
   // Allocate GPU memory
   size_t allocSize_1 = num_painting * sizeof(int);
-  size_t allocSize_2 = num_painting * num_bags * sizeof(int);
+  size_t allocSize_2 = num_bags * sizeof(int);
   CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_weights, allocSize_1));
   CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_values, allocSize_1));
   CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_results, allocSize_2));
@@ -235,7 +249,7 @@ int main(int argc, char **argv){
 
   printf("cpu time =  %lu us\n", (end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec);
   printf("cpu_result:\n");
-	print_result(num_painting, num_bags, results_gold);
+	print_result(num_bags, results_gold);
 
 #if PRINT_TIME
   // Create the cuda events
@@ -280,7 +294,7 @@ int main(int argc, char **argv){
 #endif
 
   printf("gpu_result:\n");
-  print_result(num_painting, num_bags, results);
+  print_result(num_bags, results);
 	
 
   // Free-up device and host memory
