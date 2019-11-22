@@ -241,8 +241,6 @@ int main(int argc, char **argv){
 
     
     fclose (infile); 
-    printf("number of bags = %ld\n", num_bags);
-    printf("number of paintings = %ld\n", num_painting);
 
 
    // Allocate arrays on host memory
@@ -271,8 +269,6 @@ int main(int argc, char **argv){
   CUDA_SAFE_CALL(cudaMalloc((void **)&global_weights, allocSize_1));
   CUDA_SAFE_CALL(cudaMalloc((void **)&global_values, allocSize_1));
   CUDA_SAFE_CALL(cudaMalloc((void **)&global_decisionM, allocSize_2));
-
-  printf("Allocate done\n\n");
   
 
 #if PRINT_TIME
@@ -363,7 +359,7 @@ int main(int argc, char **argv){
 
   printf("testfile = %s, bag = %d, paintings = %d\n", FILE_NAME, num_bags, num_painting);
   printf("cpu time =  %lu us\n", (end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec);
-  printf("\nGPU time: %f (usec)\n", elapsed_gpu * 1000);
+  printf("\nGPU time: %f (usec)\n\n", elapsed_gpu * 1000);
   // Free-up device and host memory
   CUDA_SAFE_CALL(cudaFree(global_weights));
   CUDA_SAFE_CALL(cudaFree(global_values));
