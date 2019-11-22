@@ -1,1 +1,1 @@
-nvcc global_knapsack.cu -o gpu_knapsack.out && ./gpu_knapsack.out
+nvcc multiblock_knapsack.cu -o multiblock_knapsack.out && ./multiblock_knapsack.out
