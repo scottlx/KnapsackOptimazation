@@ -284,7 +284,6 @@ int main(int argc, char **argv){
   
   cudaEventSynchronize(stop);
   cudaEventElapsedTime(&elapsed_gpu, start, stop);
-  printf("\nGPU time: %f (usec)\n", elapsed_gpu * 1000);
   cudaEventDestroy(start);
   cudaEventDestroy(stop);
 #endif
@@ -299,10 +298,12 @@ int main(int argc, char **argv){
   Worker(num_painting, num_bags, weights, values, results_gold);
   gettimeofday(&end, NULL);
 
-  printf("cpu time =  %lu us\n", (end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec);
+  
   printf("cpu_result:\n");
 	print_result(num_bags, results_gold);
 
+  printf("cpu time =  %lu us\n", (end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec);
+  printf("\nGPU time: %f (usec)\n", elapsed_gpu * 1000);
   // Free-up device and host memory
   CUDA_SAFE_CALL(cudaFree(gpu_weights));
   CUDA_SAFE_CALL(cudaFree(gpu_values));
