@@ -355,22 +355,13 @@ int main(int argc, char **argv){
   else{
     CUDA_SAFE_CALL(cudaMemcpy(results, col_2, allocSize_2, cudaMemcpyDeviceToHost));
   }
-
-
-  printf("gpu_result:\n");
-  print_result(num_bags, results);
-  
-  
   // Compute the results on the host
 
   gettimeofday(&begin, NULL);
   Worker(num_painting, num_bags, weights, values, results_gold);
   gettimeofday(&end, NULL);
 
-  
-  printf("cpu_result:\n");
-	print_result(num_bags, results_gold);
-
+  printf("testfile = %s, bag = %d, paintings = %d\n", FILE_NAME, num_bags, num_painting);
   printf("cpu time =  %lu us\n", (end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec);
   printf("\nGPU time: %f (usec)\n", elapsed_gpu * 1000);
   // Free-up device and host memory
