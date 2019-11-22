@@ -123,29 +123,57 @@ void print_result(int num_bags, int* result){
     printf("\n");
 }
 
+__constant__ int constant_weights[4096];
+__constant__ int constant_values[4096];
 
-__global__ void kernel_initial (int col, int* weight, int* v, int* this_col) {
+__global__ void kernel_initial_constant (int col,  int* global_decisionM, int* this_col) {
 	
   int row = threadIdx.y+MAX_THREAD*blockIdx.y;
-  if (weight[0] > row) {
+  if (constant_weights[0] > row) {
     this_col[row] = 0;
   } 
   else {
-    this_col[row] = v[0];
+    this_col[row] = constant_values[0];
+    global_decisionM[row] = 1;
   }
 }
 
-__global__ void kernel (int col, int* w, int* v, int* this_col, int* last_col) {
+__global__ void kernel_initial_global (int col, int* weights, int* values, int* global_decisionM, int* this_col) {
 	
   int row = threadIdx.y+MAX_THREAD*blockIdx.y;
-  if (row < w[col] || last_col[row] >= last_col[row-w[col]] + v[col]){
+  if (weights[0] > row) {
+    this_col[row] = 0;
+  } 
+  else {
+    this_col[row] = values[0];
+    global_decisionM[row] = 1;
+  }
+}
+
+
+__global__ void kernel_constant (int col, int* this_col,  int* global_decisionM, int* last_col) {
+	
+  int row = threadIdx.y+MAX_THREAD*blockIdx.y;
+  if (row < constant_weights[col] || last_col[row] >= last_col[row-constant_weights[col]] + constant_values[col]){
     this_col[row] = last_col[row];
   }
   else{
-    this_col[row] = last_col[row-w[col]] + v[col];
+    this_col[row] = last_col[row-constant_weights[col]] + constant_values[col];
+    global_decisionM[row] += 1 << (col%32);
   }
 }
 
+__global__ void kernel_global (int col, int* weights, int* values, int* global_decisionM, int* this_col, int* last_col) {
+	
+  int row = threadIdx.y+MAX_THREAD*blockIdx.y;
+  if (row < weights[col] || last_col[row] >= last_col[row-weights[col]] + values[col]){
+    this_col[row] = last_col[row];
+  }
+  else{
+    this_col[row] = last_col[row-weights[col]] + values[col];
+    global_decisionM[row] += 1 << (col%32);
+  }
+}
 
 
 int main(int argc, char **argv){
@@ -163,6 +191,8 @@ int main(int argc, char **argv){
   int* values;
   int* results;
   int* results_gold;
+  int* decisionM;
+  int* Zeros;
   // load input from txt
   
   FILE *infile; 
@@ -185,6 +215,7 @@ int main(int argc, char **argv){
   // prepare memory for weights and values array
   weights = (int *) malloc(num_painting*sizeof(int));
   values = (int *) malloc(num_painting*sizeof(int));
+  
 
   // load weights
   	for(i=0; i<num_painting; i++){
@@ -201,6 +232,13 @@ int main(int argc, char **argv){
     	fscanf (infile, "%d", &temp_int);
     	values[i] = temp_int;
     }
+
+  decisionM = (int *) malloc(num_painting*num_bags/32*sizeof(int));
+  Zeros = (int *) malloc(num_bags*sizeof(int));
+    for(i=0; i<num_bags; i++){
+    	Zeros[i]=0;
+    }
+
     
     fclose (infile); 
     printf("number of bags = %ld\n", num_bags);
@@ -216,10 +254,11 @@ int main(int argc, char **argv){
   float elapsed_gpu;
 
   // Arrays on GPU global memoryc
-  int *gpu_weights;
-  int *gpu_values;
   int *col_1;
   int *col_2;
+  int *global_weights;
+  int *global_values;
+  int* global_decisionM;
 
   // Select GPU
   CUDA_SAFE_CALL(cudaSetDevice(0));
@@ -227,10 +266,11 @@ int main(int argc, char **argv){
   // Allocate GPU memory
   size_t allocSize_1 = num_painting * sizeof(int);
   size_t allocSize_2 = num_bags * sizeof(int);
-  CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_weights, allocSize_1));
-  CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_values, allocSize_1));
   CUDA_SAFE_CALL(cudaMalloc((void **)&col_1, allocSize_2));
   CUDA_SAFE_CALL(cudaMalloc((void **)&col_2, allocSize_2));
+  CUDA_SAFE_CALL(cudaMalloc((void **)&global_weights, allocSize_1));
+  CUDA_SAFE_CALL(cudaMalloc((void **)&global_values, allocSize_1));
+  CUDA_SAFE_CALL(cudaMalloc((void **)&global_decisionM, allocSize_2));
 
   printf("Allocate done\n\n");
   
@@ -244,28 +284,64 @@ int main(int argc, char **argv){
 #endif
 
   // Transfer the arrays to the GPU memory
-  CUDA_SAFE_CALL(cudaMemcpy(gpu_weights, weights, allocSize_1, cudaMemcpyHostToDevice));
-  CUDA_SAFE_CALL(cudaMemcpy(gpu_values, values, allocSize_1, cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL(cudaMemcpy(global_weights, weights, allocSize_1, cudaMemcpyHostToDevice));
+  CUDA_SAFE_CALL(cudaMemcpy(global_values, values, allocSize_1, cudaMemcpyHostToDevice));
+  
+  if(num_painting<=4096){
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol(constant_weights, weights, allocSize_1,0));
+    CUDA_SAFE_CALL(cudaMemcpyToSymbol(constant_values, values, allocSize_1, 0));
+  }
 
 	// init cuPrint
 	cudaPrintfInit ();
 	
-	dim3 dimGrid(1,num_bags/MAX_THREAD,1);
-	dim3 dimBlock(1,MAX_THREAD,1);
-
-  cudaEventRecord(start, 0);
-  // Launch the kernel
-  kernel_initial<<<dimGrid, dimBlock>>>(i,  gpu_weights, gpu_values, col_1);
-  for(i=1;i<num_painting;i++){
-    if(i%2)
-      kernel<<<dimGrid, dimBlock>>>(i,  gpu_weights, gpu_values, col_2, col_1);
-    else
-      kernel<<<dimGrid, dimBlock>>>(i,  gpu_weights, gpu_values, col_1, col_2);
+	dim3 dimGrid(1,(num_bags+MAX_THREAD-1)/MAX_THREAD,1);
+  dim3 dimBlock(1,MAX_THREAD,1);
+  CUDA_SAFE_CALL(cudaMemcpy(global_decisionM, Zeros, allocSize_2, cudaMemcpyHostToDevice));
+  if(num_painting<=4096){
+    cudaEventRecord(start, 0);
+    // Launch the kernel
+    //intial
+    kernel_initial_constant<<<dimGrid, dimBlock>>>(i, global_decisionM, col_1);
+    //start from second col
+    for(i=1;i<num_painting;i++){
+      if(i%2)
+        kernel_constant<<<dimGrid, dimBlock>>>(i, global_decisionM, col_2, col_1);
+      else
+        kernel_constant<<<dimGrid, dimBlock>>>(i, global_decisionM, col_1, col_2);
+      if(i%32==0){
+        CUDA_SAFE_CALL(cudaMemcpy(decisionM + i/32*num_bags, global_decisionM, allocSize_2, cudaMemcpyDeviceToHost));
+        CUDA_SAFE_CALL(cudaMemcpy(global_decisionM, Zeros, allocSize_2, cudaMemcpyHostToDevice));
+      }
+    }
+    cudaEventRecord(stop,0);
+    // end of cuPrint
   }
-
-  
-  cudaEventRecord(stop,0);
-  // end of cuPrint
+  else{
+    cudaEventRecord(start, 0);
+    // Launch the kernel
+    kernel_initial_global<<<dimGrid, dimBlock>>>(i, global_weights, global_values, global_decisionM, col_1);
+    for(i=1;i<num_painting;i++){
+      if(i%2)
+        kernel_global<<<dimGrid, dimBlock>>>(i, global_weights, global_values, global_decisionM,col_2, col_1);
+      else
+        kernel_global<<<dimGrid, dimBlock>>>(i, global_weights, global_values, global_decisionM,col_1, col_2);
+      if(i%32==0){
+        CUDA_SAFE_CALL(cudaMemcpy(decisionM + i/32*num_bags, global_decisionM, allocSize_2, cudaMemcpyDeviceToHost));
+        CUDA_SAFE_CALL(cudaMemcpy(global_decisionM, Zeros, allocSize_2, cudaMemcpyHostToDevice));
+      }
+    }
+    cudaEventRecord(stop,0);
+    // end of cuPrint
+  }
+  #if PRINT_TIME
+    // Stop and destroy the timer
+    
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&elapsed_gpu, start, stop);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+  #endif
   cudaPrintfDisplay (stdout, true);
 	cudaPrintfEnd ();
 
@@ -279,14 +355,7 @@ int main(int argc, char **argv){
   else{
     CUDA_SAFE_CALL(cudaMemcpy(results, col_2, allocSize_2, cudaMemcpyDeviceToHost));
   }
-#if PRINT_TIME
-  // Stop and destroy the timer
-  
-  cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&elapsed_gpu, start, stop);
-  cudaEventDestroy(start);
-  cudaEventDestroy(stop);
-#endif
+
 
   printf("gpu_result:\n");
   print_result(num_bags, results);
@@ -305,8 +374,8 @@ int main(int argc, char **argv){
   printf("cpu time =  %lu us\n", (end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec);
   printf("\nGPU time: %f (usec)\n", elapsed_gpu * 1000);
   // Free-up device and host memory
-  CUDA_SAFE_CALL(cudaFree(gpu_weights));
-  CUDA_SAFE_CALL(cudaFree(gpu_values));
+  CUDA_SAFE_CALL(cudaFree(global_weights));
+  CUDA_SAFE_CALL(cudaFree(global_values));
   CUDA_SAFE_CALL(cudaFree(col_1));
   CUDA_SAFE_CALL(cudaFree(col_2));
 
