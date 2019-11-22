@@ -124,7 +124,7 @@ void print_result(int num_bags, int* result){
 }
 
 
-__global__ void kernel_initial (int col, int* w, int* v, int* this_col) {
+__global__ void kernel_initial (int col, int* weight, int* v, int* this_col) {
 	
   int row = threadIdx.y+MAX_THREAD*blockIdx.y;
   if (weight[0] > row) {
@@ -283,10 +283,12 @@ int main(int argc, char **argv){
   CUDA_SAFE_CALL(cudaPeekAtLastError());
 
   // Transfer the results back to the host
-  if(num_painting%2)
+  if(num_painting%2){
     CUDA_SAFE_CALL(cudaMemcpy(results, col_1, allocSize_2, cudaMemcpyDeviceToHost));
-  else
+  }
+  else{
     CUDA_SAFE_CALL(cudaMemcpy(results, col_2, allocSize_2, cudaMemcpyDeviceToHost));
+  }
 #if PRINT_TIME
   // Stop and destroy the timer
   
@@ -304,7 +306,8 @@ int main(int argc, char **argv){
   // Free-up device and host memory
   CUDA_SAFE_CALL(cudaFree(gpu_weights));
   CUDA_SAFE_CALL(cudaFree(gpu_values));
-  CUDA_SAFE_CALL(cudaFree(gpu_results));
+  CUDA_SAFE_CALL(cudaFree(col_1));
+  CUDA_SAFE_CALL(cudaFree(col_2));
 
   free(weights);
   free(values);
