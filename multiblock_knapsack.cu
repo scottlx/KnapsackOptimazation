@@ -25,7 +25,6 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
 
 #define PRINT_TIME         1
 #define FILE_NAME "test2.txt"
-#define NUM_BAG 10
 #define MAX_THREAD 1024
 
 #define IMUL(a, b) __mul24(a, b)
@@ -125,34 +124,26 @@ void print_result(int num_bags, int* result){
 }
 
 
-
-
-__global__ void kernel (int p, int b, int* w, int* v, int* r) {
+__global__ void kernel_initial (int col, int* w, int* v, int* this_col) {
 	
-	// int col = threadIdx.x;
-	int row = threadIdx.y;
-  int i;
-  __shared__ int last_col[NUM_BAG];
-  __shared__ int this_col[NUM_BAG];
-  //initialize first element
-  if (w[0] > row) {
-    last_col[row] = 0;
+  int row = threadIdx.y+MAX_THREAD*blockIdx.y;
+  if (weight[0] > row) {
+    this_col[row] = 0;
   } 
   else {
-    last_col[row] = v[0];
+    this_col[row] = v[0];
   }
-  __syncthreads();
-	for(i=1; i<p; i++){
-    if (row < w[i] || last_col[row] >= last_col[row-w[i]] + v[i]){
-      this_col[row] = last_col[row];
-    }
-    else{
-      this_col[row] = last_col[row-w[i]] + v[i];
-    }
-    __syncthreads();
-    last_col[row] = this_col[row];
+}
+
+__global__ void kernel (int col, int* w, int* v, int* this_col, int* last_col) {
+	
+  int row = threadIdx.y+MAX_THREAD*blockIdx.y;
+  if (row < w[col] || last_col[row] >= last_col[row-w[col]] + v[col]){
+    this_col[row] = last_col[row];
   }
-  r[row]=this_col[row];
+  else{
+    this_col[row] = last_col[row-w[col]] + v[col];
+  }
 }
 
 
@@ -227,7 +218,8 @@ int main(int argc, char **argv){
   // Arrays on GPU global memoryc
   int *gpu_weights;
   int *gpu_values;
-  int *gpu_results;
+  int *col_1;
+  int *col_2;
 
   // Select GPU
   CUDA_SAFE_CALL(cudaSetDevice(0));
@@ -237,7 +229,8 @@ int main(int argc, char **argv){
   size_t allocSize_2 = num_bags * sizeof(int);
   CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_weights, allocSize_1));
   CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_values, allocSize_1));
-  CUDA_SAFE_CALL(cudaMalloc((void **)&gpu_results, allocSize_2));
+  CUDA_SAFE_CALL(cudaMalloc((void **)&col_1, allocSize_2));
+  CUDA_SAFE_CALL(cudaMalloc((void **)&col_2, allocSize_2));
 
   printf("Allocate done\n\n");
   
@@ -272,7 +265,15 @@ int main(int argc, char **argv){
 
   cudaEventRecord(start, 0);
   // Launch the kernel
-  kernel<<<dimGrid, dimBlock>>>(num_painting, num_bags, gpu_weights, gpu_values, gpu_results);
+  kernel_initial<<<dimGrid, dimBlock>>>(i,  gpu_weights, gpu_values, col_1);
+  for(i=1;i<num_painting;i++){
+    if(i%2)
+      kernel<<<dimGrid, dimBlock>>>(i,  gpu_weights, gpu_values, col_2, col_1);
+    else
+      kernel<<<dimGrid, dimBlock>>>(i,  gpu_weights, gpu_values, col_1, col_2);
+  }
+
+  
   cudaEventRecord(stop,0);
   // end of cuPrint
   cudaPrintfDisplay (stdout, true);
@@ -282,8 +283,10 @@ int main(int argc, char **argv){
   CUDA_SAFE_CALL(cudaPeekAtLastError());
 
   // Transfer the results back to the host
-  CUDA_SAFE_CALL(cudaMemcpy(results, gpu_results, allocSize_2, cudaMemcpyDeviceToHost));
-
+  if(num_painting%2)
+    CUDA_SAFE_CALL(cudaMemcpy(results, col_1, allocSize_2, cudaMemcpyDeviceToHost));
+  else
+    CUDA_SAFE_CALL(cudaMemcpy(results, col_2, allocSize_2, cudaMemcpyDeviceToHost));
 #if PRINT_TIME
   // Stop and destroy the timer
   
