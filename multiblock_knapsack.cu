@@ -234,16 +234,6 @@ int main(int argc, char **argv){
 
   printf("Allocate done\n\n");
   
-  
-  // Compute the results on the host
-
-  gettimeofday(&begin, NULL);
-  Worker(num_painting, num_bags, weights, values, results_gold);
-  gettimeofday(&end, NULL);
-
-  printf("cpu time =  %lu us\n", (end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec);
-  printf("cpu_result:\n");
-	print_result(num_bags, results_gold);
 
 #if PRINT_TIME
   // Create the cuda events
@@ -301,7 +291,17 @@ int main(int argc, char **argv){
 
   printf("gpu_result:\n");
   print_result(num_bags, results);
-	
+  
+  
+  // Compute the results on the host
+
+  gettimeofday(&begin, NULL);
+  Worker(num_painting, num_bags, weights, values, results_gold);
+  gettimeofday(&end, NULL);
+
+  printf("cpu time =  %lu us\n", (end.tv_sec - begin.tv_sec) * 1000000 + end.tv_usec - begin.tv_usec);
+  printf("cpu_result:\n");
+	print_result(num_bags, results_gold);
 
   // Free-up device and host memory
   CUDA_SAFE_CALL(cudaFree(gpu_weights));
