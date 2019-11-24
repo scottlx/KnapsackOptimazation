@@ -77,7 +77,7 @@ for(i=0; i<(*num_painting); i++){
 
 }
 
-void Worker(int n, int b, int* weight, int* value, int* result){
+void Worker(int n, int b, int* weight, int* value, int* result, int* decisionM){
   int i, j;
   int* tmp1 = (int *) malloc(b*sizeof(int));
   int* tmp2 = (int *) malloc(b*sizeof(int));
@@ -101,6 +101,7 @@ void Worker(int n, int b, int* weight, int* value, int* result){
       }
       else{
         tmp2[j] = tmp1[j-weight[i]] + value[i];
+        //decisionM[i/32*b+j] += 1 << (i%32);
       }
     }
     tmp3 = tmp1;
@@ -191,6 +192,7 @@ int main(int argc, char **argv){
   int* values;
   int* results;
   int* results_gold;
+  int* decisionM_gold;
   int* decisionM;
   int* Zeros;
   // load input from txt
@@ -234,6 +236,7 @@ int main(int argc, char **argv){
     }
 
   decisionM = (int *) malloc(num_painting*num_bags/32*sizeof(int));
+  decisionM_gold = (int *) malloc(num_painting*num_bags/32*sizeof(int));
   Zeros = (int *) malloc(num_bags*sizeof(int));
     for(i=0; i<num_bags; i++){
     	Zeros[i]=0;
@@ -354,7 +357,7 @@ int main(int argc, char **argv){
   // Compute the results on the host
 
   gettimeofday(&begin, NULL);
-  Worker(num_painting, num_bags, weights, values, results_gold);
+  Worker(num_painting, num_bags, weights, values, results_gold, decisionM_gold);
   gettimeofday(&end, NULL);
 
   printf("testfile = %s, bag = %d, paintings = %d\n", FILE_NAME, num_bags, num_painting);
@@ -370,6 +373,8 @@ int main(int argc, char **argv){
   free(values);
   free(results);
   free(results_gold);
+  // free(decisionM);
+  // free(decisionM_gold);
 
   return 0;
 }
