@@ -101,7 +101,7 @@ void Worker(int n, int b, int* weight, int* value, int* result, int* decisionM){
       }
       else{
         tmp2[j] = tmp1[j-weight[i]] + value[i];
-        //decisionM[i/32*b+j] += 1 << (i%32);
+        decisionM[i/32*b+j] += 1 << (i%32);
       }
     }
     tmp3 = tmp1;
@@ -242,6 +242,10 @@ int main(int argc, char **argv){
     	Zeros[i]=0;
     }
 
+  for(i=0; i<num_bags*num_painting/32; i++){
+    decisionM_gold[i] = 0;
+  }
+
     
     fclose (infile); 
 
@@ -373,8 +377,6 @@ int main(int argc, char **argv){
   free(values);
   free(results);
   free(results_gold);
-  // free(decisionM);
-  // free(decisionM_gold);
 
   return 0;
 }
