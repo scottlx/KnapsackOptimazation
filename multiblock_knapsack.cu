@@ -82,6 +82,7 @@ void Worker(int n, int b, int* weight, int* value, int* result, int* decisionM){
   int* tmp1 = (int *) malloc(b*sizeof(int));
   int* tmp2 = (int *) malloc(b*sizeof(int));
   int* tmp3;
+  int weight_diff = 0;
   for(j=0; j<b; j++){
     if (weight[0] > j) {
       tmp1[j] = 0;
@@ -95,12 +96,13 @@ void Worker(int n, int b, int* weight, int* value, int* result, int* decisionM){
     //printf("i = %d\n",i);
     for(j=0; j<b; j++){
       //printf("j = %d\n",j);
-      if (j < weight[i] || tmp1[j] >= tmp1[j-weight[i]] + value[i]){
+      weight_diff = tmp1[j-weight[i]] + value[i];
+      if (j < weight[i] || tmp1[j] >= weight_diff){
         //printf("er\n");
         tmp2[j] = tmp1[j];
       }
       else{
-        tmp2[j] = tmp1[j-weight[i]] + value[i];
+        tmp2[j] = weight_diff;
         decisionM[i/32*b+j] += 1 << (i%32);
       }
     }
