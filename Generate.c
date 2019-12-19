@@ -4,7 +4,7 @@
 #define W_RANGE 1000
 
 
-// # of painting = first arg, # of bags = second arg, file name = thrid arg
+// # of painting = first arg, file name = second arg
 int main(int argc, char *argv[]){
         int n = 0, i = 0;
         long int w_sum = 0;
